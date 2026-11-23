@@ -1,0 +1,493 @@
+# ==============================================================================
+# GraphQL Schema Definition (BFF / API Gateway)
+# Система управления доставкой посылок
+# ==============================================================================
+
+# ----------------- СКАЛЯРЫ И ПЕРЕЧИСЛЕНИЯ (ENUMS) -----------------
+scalar DateTime
+scalar Decimal
+
+enum RoleType {
+  ROLE_CLIENT
+  ROLE_COURIER
+  ROLE_ADMIN
+}
+
+enum AccountStatus {
+  ACTIVE
+  BLOCKED
+}
+
+enum ShipmentStatus {
+  CREATED
+  ASSIGNED
+  PICKED_UP
+  IN_TRANSIT
+  OUT_FOR_DELIVERY
+  DELIVERED
+  CANCELLED
+}
+
+enum TransportType {
+  FOOT
+  BICYCLE
+  CAR
+  VAN
+}
+
+enum CourierStatus {
+  AVAILABLE
+  BUSY
+  OFFLINE
+}
+
+enum StageType {
+  PICKUP
+  MAIN_TRANSIT
+  LAST_MILE
+}
+
+enum StageStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum DeliveryType {
+  FIRST_MILE_PICKUP
+  LAST_MILE_DROPOFF
+}
+
+enum DeliveryStatus {
+  PENDING_ASSIGNMENT
+  ASSIGNED
+  PICKED_UP
+  DELIVERED
+  FAILED
+}
+
+enum NotificationChannel {
+  SMS
+  PUSH
+  EMAIL
+}
+
+enum ShipmentSortField {
+  CREATED_AT
+  CALCULATED_PRICE
+  WEIGHT_KG
+  TRACKING_NUMBER
+}
+
+enum CourierSortField {
+  RATING
+  TOTAL_DELIVERIES
+  MAX_PAYLOAD_KG
+}
+
+enum SortDirection {
+  ASC
+  DESC
+}
+
+# ----------------- ТИПЫ ДАННЫХ (OBJECT TYPES) -----------------
+type User {
+  id: ID!
+  email: String!
+  phone: String!
+  firstName: String!
+  lastName: String!
+  role: RoleType!
+  accountStatus: AccountStatus!
+  createdAt: DateTime!
+}
+
+type AuthPayload {
+  accessToken: String!
+  refreshToken: String!
+  tokenType: String!
+  expiresIn: Int!
+  sessionId: ID!
+  user: User!
+}
+
+type SessionInfo {
+  sessionId: ID!
+  userId: ID!
+  email: String!
+  role: RoleType!
+  accountStatus: AccountStatus!
+  createdAt: DateTime!
+  expiresAt: DateTime!
+  ttlSeconds: Int!
+}
+
+type Tariff {
+  id: ID!
+  code: String!
+  name: String!
+  description: String
+  basePrice: Decimal!
+  pricePerKg: Decimal!
+  pricePerKm: Decimal!
+  urgencyMultiplier: Float!
+  maxDeliveryDays: Int!
+  isActive: Boolean!
+}
+
+type Dimensions {
+  lengthCm: Float!
+  widthCm: Float!
+  heightCm: Float!
+}
+
+type PriceCalculationResult {
+  tariffId: ID!
+  tariffName: String!
+  estimatedDistanceKm: Float!
+  basePrice: Decimal!
+  weightPrice: Decimal!
+  distancePrice: Decimal!
+  totalPrice: Decimal!
+  estimatedDeliveryDays: Int!
+}
+
+type Shipment {
+  id: ID!
+  trackingNumber: String!
+  client: User!
+  tariff: Tariff!
+  weightKg: Float!
+  dimensions: Dimensions!
+  calculatedPrice: Decimal!
+  currentStatus: ShipmentStatus!
+  originCity: String!
+  originAddress: String!
+  destCity: String!
+  destAddress: String!
+  recipientName: String!
+  recipientPhone: String!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  route: Route
+  activeDelivery: Delivery
+}
+
+type Route {
+  id: ID!
+  shipmentId: ID!
+  totalDistanceKm: Float!
+  estimatedDurationMin: Int!
+  currentStageOrder: Int!
+  status: String!
+  stages: [RouteStage!]!
+  createdAt: DateTime!
+}
+
+type RouteStage {
+  id: ID!
+  stageOrder: Int!
+  stageType: StageType!
+  originPoint: String!
+  destPoint: String!
+  plannedStart: DateTime!
+  plannedEnd: DateTime!
+  status: StageStatus!
+}
+
+type Courier {
+  id: ID!
+  userId: ID!
+  transportType: TransportType!
+  vehiclePlate: String
+  maxPayloadKg: Float!
+  currentStatus: CourierStatus!
+  currentLat: Float
+  currentLon: Float
+  rating: Float!
+  totalDeliveries: Int!
+}
+
+type Delivery {
+  id: ID!
+  shipmentId: ID!
+  routeStageId: ID!
+  courier: Courier
+  deliveryType: DeliveryType!
+  status: DeliveryStatus!
+  windowStart: DateTime!
+  windowEnd: DateTime!
+  actualDeliveredAt: DateTime
+  checkpoints: [DeliveryCheckpoint!]!
+}
+
+type DeliveryCheckpoint {
+  id: ID!
+  status: String!
+  recordedAt: DateTime!
+  locationName: String!
+  notes: String
+}
+
+type TrackingTimeline {
+  trackingNumber: String!
+  status: ShipmentStatus!
+  originCity: String!
+  destCity: String!
+  courierLat: Float
+  courierLon: Float
+  events: [TrackingEvent!]!
+}
+
+type TrackingEvent {
+  timestamp: DateTime!
+  status: String!
+  locationName: String!
+  description: String
+}
+
+type AnalyticsSummary {
+  periodStart: DateTime!
+  periodEnd: DateTime!
+  totalShipments: Int!
+  deliveredShipments: Int!
+  totalRevenue: Decimal!
+  averageDeliveryDurationMin: Float!
+  slaComplianceRate: Float!
+}
+
+type ShipmentConnection {
+  items: [Shipment!]!
+  totalCount: Int!
+}
+
+type StatusCount {
+  status: ShipmentStatus!
+  count: Int!
+}
+
+type CityRevenueStats {
+  city: String!
+  shipmentCount: Int!
+  totalRevenue: Decimal!
+}
+
+type TariffUsageStats {
+  tariffName: String!
+  count: Int!
+  revenue: Decimal!
+}
+
+type ShipmentStats {
+  totalCount: Int!
+  totalRevenue: Decimal!
+  averagePrice: Decimal!
+  minPrice: Decimal!
+  maxPrice: Decimal!
+  averageWeight: Float!
+  statusBreakdown: [StatusCount!]!
+  cityBreakdown: [CityRevenueStats!]!
+  tariffBreakdown: [TariffUsageStats!]!
+}
+
+type CourierPerformanceStats {
+  totalCouriers: Int!
+  availableCouriers: Int!
+  busyCouriers: Int!
+  offlineCouriers: Int!
+  averageRating: Float!
+  totalDeliveredCount: Int!
+  topPerformer: Courier
+}
+
+# ----------------- ВХОДНЫЕ СТРУКТУРЫ (INPUT TYPES) -----------------
+input ShipmentFilterInput {
+  status: [ShipmentStatus!]
+  originCity: String
+  destCity: String
+  tariffId: ID
+  dateFrom: DateTime
+  dateTo: DateTime
+  minPrice: Decimal
+  maxPrice: Decimal
+  minWeight: Float
+  maxWeight: Float
+  searchQuery: String
+}
+
+input ShipmentSortInput {
+  field: ShipmentSortField!
+  direction: SortDirection = DESC
+}
+
+input CourierFilterInput {
+  status: CourierStatus
+  transportType: TransportType
+  minPayloadKg: Float
+  minRating: Float
+}
+
+input CourierSortInput {
+  field: CourierSortField!
+  direction: SortDirection = DESC
+}
+
+input PaginationInput {
+  limit: Int = 50
+  offset: Int = 0
+}
+
+input CancelShipmentInput {
+  trackingNumber: String!
+  reason: String
+}
+input RegisterUserInput {
+  email: String!
+  phone: String!
+  password: String!
+  firstName: String!
+  lastName: String!
+  role: RoleType = ROLE_CLIENT
+}
+
+input LoginInput {
+  email: String!
+  password: String!
+}
+
+input DimensionsInput {
+  lengthCm: Float!
+  widthCm: Float!
+  heightCm: Float!
+}
+
+input CalculatePriceInput {
+  tariffId: ID!
+  originCity: String!
+  destCity: String!
+  distanceKm: Float!
+  weightKg: Float!
+}
+
+input CreateShipmentInput {
+  tariffId: ID!
+  weightKg: Float!
+  dimensions: DimensionsInput!
+  originCity: String!
+  originAddress: String!
+  destCity: String!
+  destAddress: String!
+  recipientName: String!
+  recipientPhone: String!
+}
+
+input UpdateCourierStatusInput {
+  courierId: ID
+  status: CourierStatus!
+}
+
+input CourierLocationInput {
+  courierId: ID
+  latitude: Float!
+  longitude: Float!
+}
+
+input AssignCourierInput {
+  deliveryId: ID!
+  courierId: ID!
+}
+
+input UpdateDeliveryCheckpointInput {
+  deliveryId: ID!
+  status: String!
+  locationName: String!
+  notes: String
+}
+
+input VerifyDeliveryCodeInput {
+  deliveryId: ID!
+  plainOtpCode: String!
+}
+
+input DateRangeInput {
+  startDate: DateTime!
+  endDate: DateTime!
+}
+
+# ----------------- ОПЕРАЦИИ ЗАПРОСА (QUERY) -----------------
+type Query {
+  # Профиль текущего аутентифицированного пользователя
+  me: User!
+
+  # Информация об активной сессии пользователя в Redis
+  activeSession: SessionInfo!
+  
+  # Каталог тарифов компании
+  tariffs: [Tariff!]!
+  
+  # Предварительный расчет стоимости отправления
+  calculatePrice(input: CalculatePriceInput!): PriceCalculationResult!
+  
+  # Поиск отправления по трек-номеру
+  shipment(trackingNumber: String!): Shipment
+  
+  # Список отправлений текущего клиента
+  myShipments: ShipmentConnection!
+
+  # Расширенный список отправлений с фильтрацией, сортировкой и пагинацией
+  shipments(filter: ShipmentFilterInput, sort: ShipmentSortInput, pagination: PaginationInput): ShipmentConnection!
+
+  # Список курьеров с фильтрацией и сортировкой
+  couriers(filter: CourierFilterInput, sort: CourierSortInput): [Courier!]!
+
+  # Агрегированная статистика отправлений (KPI, суммы, средние, распределение)
+  shipmentStats(filter: ShipmentFilterInput): ShipmentStats!
+
+  # Сводные показатели эффективности курьерской службы
+  courierPerformanceStats: CourierPerformanceStats!
+  
+  # Сквозной трекинг движения посылки
+  tracking(trackingNumber: String!): TrackingTimeline!
+  
+  # Профиль курьера и список назначенных ему задач
+  courierProfile(courierId: ID): Courier
+  courierDeliveries(courierId: ID!, status: DeliveryStatus): [Delivery!]!
+  
+  # Аналитический отчет для администратора
+  analyticsSummary(range: DateRangeInput!): AnalyticsSummary!
+}
+
+# ----------------- ОПЕРАЦИИ ИЗМЕНЕНИЯ (MUTATION) -----------------
+type Mutation {
+  # Регистрация, вход, обновление токена и выход (управление сессией Redis в Auth Service)
+  register(input: RegisterUserInput!): AuthPayload!
+  login(input: LoginInput!): AuthPayload!
+  refreshToken(refreshToken: String!): AuthPayload!
+  logout: Boolean!
+  
+  # Создание и отмена отправления с проверкой бизнес-правил
+  createShipment(input: CreateShipmentInput!): Shipment!
+  cancelShipment(trackingNumber: String!, reason: String): Boolean!
+  
+  # Управление статусом и координатами курьера
+  updateCourierStatus(input: UpdateCourierStatusInput!): Courier!
+  updateCourierLocation(input: CourierLocationInput!): Boolean!
+  
+  # Назначение курьера на доставку (диспетчер / авто-сервис)
+  assignCourier(input: AssignCourierInput!): Delivery!
+  
+  # Фиксация контрольной точки курьером (забор, транзит)
+  updateDeliveryCheckpoint(input: UpdateDeliveryCheckpointInput!): DeliveryCheckpoint!
+  
+  # Завершение доставки с проверкой OTP-кода получателя
+  verifyAndCompleteDelivery(input: VerifyDeliveryCodeInput!): Delivery!
+}
+
+# ----------------- ОПЕРАЦИИ ПОДПИСКИ (SUBSCRIPTION) -----------------
+type Subscription {
+  # Потоковое отслеживание позиции курьера на карте
+  courierLocationUpdated(courierId: ID!): Courier!
+  
+  # Уведомление об изменении статуса посылки
+  shipmentStatusChanged(trackingNumber: String!): TrackingEvent!
+}

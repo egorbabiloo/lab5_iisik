@@ -1,0 +1,195 @@
+{
+  "scenario1_login_session": {
+    "login_query": "mutation LoginUser($input: LoginInput!) {\n      login(input: $input) {\n        accessToken\n        tokenType\n        expiresIn\n        sessionId\n        user {\n          id\n          email\n          role\n          accountStatus\n        }\n      }\n    }",
+    "login_response": {
+      "data": {
+        "login": {
+          "accessToken": "eyJhbGciOiJIUzI1NiIsInR5...4u3ZwvxIjbD1lAdM",
+          "tokenType": "Bearer",
+          "expiresIn": 1800,
+          "sessionId": "71f41df4-5bcf-4ca0-a2eb-75cb16bdefc4",
+          "user": {
+            "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+            "email": "client@logistics.by",
+            "role": "ROLE_CLIENT",
+            "accountStatus": "ACTIVE"
+          }
+        }
+      }
+    },
+    "session_query": "query GetActiveSession {\n      me {\n        id\n        email\n        role\n      }\n      activeSession {\n        sessionId\n        email\n        role\n        ttlSeconds\n        expiresAt\n      }\n    }",
+    "session_response": {
+      "data": {
+        "me": {
+          "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+          "email": "client@logistics.by",
+          "role": "ROLE_CLIENT"
+        },
+        "activeSession": {
+          "sessionId": "71f41df4-5bcf-4ca0-a2eb-75cb16bdefc4",
+          "email": "client@logistics.by",
+          "role": "ROLE_CLIENT",
+          "ttlSeconds": 1800,
+          "expiresAt": "2026-11-22T15:10:16.132871+00:00"
+        }
+      }
+    }
+  },
+  "scenario2_unauth_rejection": {
+    "query": "query ProtectedShipments {\n      myShipments {\n        totalCount\n        items { trackingNumber }\n      }\n    }",
+    "no_token_response": {
+      "data": null,
+      "errors": [
+        {
+          "message": "Authentication required: missing or invalid Bearer token",
+          "locations": [
+            {
+              "line": 3,
+              "column": 7
+            }
+          ],
+          "path": [
+            "myShipments"
+          ],
+          "extensions": {
+            "code": "UNAUTHENTICATED"
+          }
+        }
+      ]
+    },
+    "tampered_token_response": {
+      "data": null,
+      "errors": [
+        {
+          "message": "Invalid JWT token: Signature verification failed",
+          "locations": [
+            {
+              "line": 3,
+              "column": 7
+            }
+          ],
+          "path": [
+            "myShipments"
+          ],
+          "extensions": {
+            "code": "UNAUTHENTICATED"
+          }
+        }
+      ]
+    }
+  },
+  "scenario3_rbac": {
+    "client_other_shipment_query": "query OtherClientShipment {\n      shipment(trackingNumber: \"PKG-BY-2026-849203\") {\n        trackingNumber\n        calculatedPrice\n      }\n    }",
+    "client_other_shipment_response": {
+      "data": {
+        "shipment": null
+      },
+      "errors": [
+        {
+          "message": "Access denied: client 'client@logistics.by' cannot access shipment 'PKG-BY-2026-849203'",
+          "locations": [
+            {
+              "line": 3,
+              "column": 7
+            }
+          ],
+          "path": [
+            "shipment"
+          ],
+          "extensions": {
+            "code": "FORBIDDEN"
+          }
+        }
+      ]
+    },
+    "client_analytics_response": {
+      "data": null,
+      "errors": [
+        {
+          "message": "Access denied for role 'ROLE_CLIENT' to operation 'analyticsSummary'. Required roles: ROLE_ADMIN",
+          "locations": [
+            {
+              "line": 3,
+              "column": 7
+            }
+          ],
+          "path": [
+            "analyticsSummary"
+          ],
+          "extensions": {
+            "code": "FORBIDDEN"
+          }
+        }
+      ]
+    },
+    "admin_analytics_query": "query AdminAnalytics {\n      analyticsSummary(range: {startDate: \"2026-10-01T00:00:00Z\", endDate: \"2026-10-31T23:59:59Z\"}) {\n        totalShipments\n        deliveredShipments\n        totalRevenue\n        slaComplianceRate\n      }\n    }",
+    "admin_analytics_response": {
+      "data": {
+        "analyticsSummary": {
+          "totalShipments": 15,
+          "deliveredShipments": 14,
+          "totalRevenue": "416.00",
+          "slaComplianceRate": 0.9733
+        }
+      }
+    },
+    "courier_profile_response": {
+      "data": {
+        "courierProfile": {
+          "id": "88776655-4433-2211-00aa-bbccddeeff11",
+          "transportType": "CAR",
+          "currentStatus": "AVAILABLE"
+        }
+      }
+    },
+    "courier_assign_response": {
+      "data": null,
+      "errors": [
+        {
+          "message": "Access denied for role 'ROLE_COURIER' to operation 'assignCourier'. Required roles: ROLE_ADMIN",
+          "locations": [
+            {
+              "line": 1,
+              "column": 12
+            }
+          ],
+          "path": [
+            "assignCourier"
+          ],
+          "extensions": {
+            "code": "FORBIDDEN"
+          }
+        }
+      ]
+    }
+  },
+  "scenario4_logout_revocation": {
+    "logout_query": "mutation { logout }",
+    "logout_response": {
+      "data": {
+        "logout": true
+      }
+    },
+    "after_logout_query": "query { me { id email } }",
+    "after_logout_response": {
+      "data": null,
+      "errors": [
+        {
+          "message": "Active session not found or expired in Redis; please re-authenticate",
+          "locations": [
+            {
+              "line": 1,
+              "column": 9
+            }
+          ],
+          "path": [
+            "me"
+          ],
+          "extensions": {
+            "code": "UNAUTHENTICATED"
+          }
+        }
+      ]
+    }
+  }
+}
